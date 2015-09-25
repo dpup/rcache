@@ -16,24 +16,9 @@
 package rcache
 
 import (
-	"reflect"
 	"sync"
 	"time"
 )
-
-var (
-	byteArrayType = reflect.ValueOf([]byte{}).Type()
-	errorType     = reflect.TypeOf((*error)(nil)).Elem()
-)
-
-type CacheEntry struct {
-	Key      CacheKey
-	Bytes    []byte
-	Created  time.Time
-	Accessed time.Time
-	Error    error
-	wg       sync.WaitGroup
-}
 
 // The cache interface has multiple implementations. Both provide generic
 // fetcher functions for complex cache keys.
@@ -63,4 +48,27 @@ type Cache interface {
 
 	// Size returns the number of bytes stored in the cache.
 	Size() int64
+}
+
+type CacheEntry struct {
+	Key      CacheKey
+	Bytes    []byte
+	Created  time.Time
+	Accessed time.Time
+	Error    error
+	wg       sync.WaitGroup
+}
+
+// Cache keys must satisfy the CacheKey interface.
+type CacheKey interface {
+	Dependencies() []CacheKey
+}
+
+var NoDeps = []CacheKey{}
+
+// StrKey allows strings to be easily used as cache keys with no dependencies.
+type StrKey string
+
+func (str StrKey) Dependencies() []CacheKey {
+	return NoDeps
 }

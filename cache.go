@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+var (
+	byteArrayType = reflect.ValueOf([]byte{}).Type()
+	errorType     = reflect.TypeOf((*error)(nil)).Elem()
+)
+
 type cache struct {
 	fetchers        map[reflect.Type]reflect.Value
 	cache           map[CacheKey]*CacheEntry
