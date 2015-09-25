@@ -68,22 +68,23 @@ type CacheEntry struct {
 	Bytes    []byte
 	Created  time.Time
 	Accessed time.Time
+	Error    error
 	wg       sync.WaitGroup
-	err      error
 }
 
 type Cache struct {
-	fetchers  map[reflect.Type]reflect.Value
-	cache     map[CacheKey]*CacheEntry
-	cacheLock sync.Mutex
-	cacheSize *expvar.Int
+	fetchers        map[reflect.Type]reflect.Value
+	cache           map[CacheKey]*CacheEntry
+	cacheLock       sync.Mutex
+	cacheSize       int64
+	cacheSizeExpVar *expvar.Int
 }
 
 func New(name string) *Cache {
 	return &Cache{
-		fetchers:  make(map[reflect.Type]reflect.Value),
-		cache:     make(map[CacheKey]*CacheEntry),
-		cacheSize: expvar.NewInt(fmt.Sprintf("cacheSize (%s)", name)),
+		fetchers:        make(map[reflect.Type]reflect.Value),
+		cache:           make(map[CacheKey]*CacheEntry),
+		cacheSizeExpVar: expvar.NewInt(fmt.Sprintf("cacheSize (%s)", name)),
 	}
 }
 
@@ -107,35 +108,55 @@ func (c *Cache) RegisterFetcher(fn interface{}) {
 // data hasn't yet been loaded. Concurrent callers will multiplex to the same
 // fetcher.
 func (c *Cache) Get(key CacheKey) ([]byte, error) {
+	e := c.GetCacheEntry(key)
+	return e.Bytes, e.Error
+}
+
+// GetCacheEntry is the same as Get but returns the meta cache entry.
+func (c *Cache) GetCacheEntry(key CacheKey) *CacheEntry {
 	c.cacheLock.Lock()
 	if entry, ok := c.cache[key]; ok {
 		c.cacheLock.Unlock()
 		entry.wg.Wait()
 		entry.Accessed = time.Now()
-		return entry.Bytes, entry.err
+		return entry
 	}
 
 	// Create the cache entry for future callers to wait on.
-	entry := &CacheEntry{Key: key}
+	entry := &CacheEntry{Key: key, Created: time.Now(), Accessed: time.Now()}
 	entry.wg.Add(1)
 	c.cache[key] = entry
 	c.cacheLock.Unlock()
 
-	entry.Bytes, entry.err = c.fetch(key)
-	entry.Created = time.Now()
+	entry.Bytes, entry.Error = c.fetch(key)
 	entry.wg.Done()
 
 	c.cacheLock.Lock()
 	// We allow the error to be handled by current waiters, but don't persist it
 	// for future callers.
-	if entry.err != nil {
+	if entry.Error != nil {
 		delete(c.cache, key)
 	} else {
-		c.cacheSize.Add(int64(len(entry.Bytes)))
+		size := int64(len(entry.Bytes))
+		c.cacheSizeExpVar.Add(size)
+		c.cacheSize += size
 	}
 	c.cacheLock.Unlock()
 
-	return entry.Bytes, entry.err
+	return entry
+}
+
+// Peek returns true if the key is currently cached. If the key is in the
+// process of being fetched, Peek will block and return true on success.
+func (c *Cache) Peek(key CacheKey) bool {
+	c.cacheLock.Lock()
+	if entry, ok := c.cache[key]; ok {
+		c.cacheLock.Unlock()
+		entry.wg.Wait()
+		return entry.Error == nil
+	}
+	c.cacheLock.Unlock()
+	return false
 }
 
 // Entries returns an array of entries currently in the cache.
@@ -156,9 +177,15 @@ func (c *Cache) Invalidate(key CacheKey) bool {
 	return c.invalidate(key)
 }
 
+func (c *Cache) Size() int64 {
+	return c.cacheSize
+}
+
 func (c *Cache) invalidate(key CacheKey) bool {
 	if entry, ok := c.cache[key]; ok {
-		c.cacheSize.Add(int64(-len(entry.Bytes)))
+		size := int64(len(entry.Bytes))
+		c.cacheSizeExpVar.Add(-size)
+		c.cacheSize -= size
 		delete(c.cache, key)
 		c.invalidateDependents(key)
 		return true
