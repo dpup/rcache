@@ -1,15 +1,53 @@
 // Copyright 2015 Daniel Pupius
 
-// Package cache provides a generic in-memory, read through cache, of []byte.
+// Package cache provides a generic in-memory, read through, hierarchical cache,
+// of []byte.
 //
 // Cache keys are structs that can provide detailed parameters for the requested
 // resource. CacheKeys declare what other keys they depend on, which allows for
 // removal of down-stream entries.
 //
-// Due to the use of reflection cache misses are 5-10x slower than using a
-// regular, typed map. But cache hits are fast.
+// The following example requests images for a car, then has a dependent cache
+// for thumbnails. If the original image is invalidated, so are the thumbnails.
 //
+//  type CarKey struct {
+//    Manufacturer string
+//    Model string
+//  }
 //
+//  func (key CarKey) Dependencies []rcache.CacheKey {
+//    return rcache.NoDeps
+//  }
+//
+//  type ThumbnailKey struct {
+//    Manufacturer string
+//    Model string
+//    Size  int
+//  }
+//
+//  func (key ThumbnailKey) Dependencies() []rcache.CacheKey {
+//    return []CacheKey{CarKey{key.Manufacturer, key.Model}}
+//  }
+//
+//  c := rcache.New("mycache")
+//  c.RegisterFetcher(func(key CarKey) ([]byte, error) {
+//    return imageLibrary.GetCarImage(key.Manufacturer, key.Model), nil
+//  })
+//  c.RegisterFetcher(func(key ThumbnailKey) ([]byte, error) {
+//    fullImage := c.Get(CarKey{key.Manufacturer, key.Model})
+//    return imageProc.Resize(fullImage, key.Size)
+//  })
+//
+//  // Original image is only fetched once.
+//  t200, err := c.Get(ThumbnailKey{"BMW", "M5", 200})
+//  t400, err := c.Get(ThumbnailKey{"BMW", "M5", 400})
+//
+// Due to the use of reflection for keys, cache misses are 2-5x slower than
+// using a regular, typed map. But cache hits are fast.
+//
+//  BenchmarkCacheWithMisses      1000000      2217 ns/op
+//  BenchmarkCacheWithHits        10000000     167 ns/op
+//  BenchmarkNormalMapWithMisses  2000000      831 ns/op
 package rcache
 
 import (
@@ -17,6 +55,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"time"
 )
 
 var (
@@ -24,15 +63,17 @@ var (
 	errorType     = reflect.TypeOf((*error)(nil)).Elem()
 )
 
-type cacheEntry struct {
-	wg    sync.WaitGroup
-	bytes []byte
-	err   error
+type CacheEntry struct {
+	Bytes    []byte
+	Created  time.Time
+	Accessed time.Time
+	wg       sync.WaitGroup
+	err      error
 }
 
 type Cache struct {
 	fetchers  map[reflect.Type]reflect.Value
-	cache     map[CacheKey]*cacheEntry
+	cache     map[CacheKey]*CacheEntry
 	cacheLock sync.Mutex
 	cacheSize *expvar.Int
 }
@@ -40,7 +81,7 @@ type Cache struct {
 func New(name string) *Cache {
 	return &Cache{
 		fetchers:  make(map[reflect.Type]reflect.Value),
-		cache:     make(map[CacheKey]*cacheEntry),
+		cache:     make(map[CacheKey]*CacheEntry),
 		cacheSize: expvar.NewInt(fmt.Sprintf("cacheSize (%s)", name)),
 	}
 }
@@ -62,22 +103,25 @@ func (c *Cache) RegisterFetcher(fn interface{}) {
 }
 
 // Get returns the data for a key, falling back to a fetcher function if the
-// data hasn't yet been loaded.
+// data hasn't yet been loaded. Concurrent callers will multiplex to the same
+// fetcher.
 func (c *Cache) Get(key CacheKey) ([]byte, error) {
 	c.cacheLock.Lock()
 	if entry, ok := c.cache[key]; ok {
 		c.cacheLock.Unlock()
 		entry.wg.Wait()
-		return entry.bytes, entry.err
+		entry.Accessed = time.Now()
+		return entry.Bytes, entry.err
 	}
 
 	// Create the cache entry for future callers to wait on.
-	entry := &cacheEntry{}
+	entry := &CacheEntry{}
 	entry.wg.Add(1)
 	c.cache[key] = entry
 	c.cacheLock.Unlock()
 
-	entry.bytes, entry.err = c.fetch(key)
+	entry.Bytes, entry.err = c.fetch(key)
+	entry.Created = time.Now()
 	entry.wg.Done()
 
 	c.cacheLock.Lock()
@@ -86,11 +130,11 @@ func (c *Cache) Get(key CacheKey) ([]byte, error) {
 	if entry.err != nil {
 		delete(c.cache, key)
 	} else {
-		c.cacheSize.Add(int64(len(entry.bytes)))
+		c.cacheSize.Add(int64(len(entry.Bytes)))
 	}
 	c.cacheLock.Unlock()
 
-	return entry.bytes, entry.err
+	return entry.Bytes, entry.err
 }
 
 // Invalidate removes an entry, and any entries that depend on it, from the cache.
@@ -102,7 +146,7 @@ func (c *Cache) Invalidate(key CacheKey) bool {
 
 func (c *Cache) invalidate(key CacheKey) bool {
 	if entry, ok := c.cache[key]; ok {
-		c.cacheSize.Add(int64(-len(entry.bytes)))
+		c.cacheSize.Add(int64(-len(entry.Bytes)))
 		delete(c.cache, key)
 		c.invalidateDependents(key)
 		return true
