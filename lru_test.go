@@ -74,5 +74,4 @@ func TestLRUBehavior(t *testing.T) {
 	if !lru.Peek(e) {
 		t.Error("Expected entry (d) to be cached")
 	}
-
 }

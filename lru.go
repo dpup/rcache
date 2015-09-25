@@ -7,16 +7,18 @@ import (
 	"sync"
 )
 
-type LRU struct {
+type lru struct {
 	maxSizeBytes int64
-	delegate     *Cache
+	delegate     Cache
 	mu           sync.Mutex
 	elementMap   map[CacheKey]*list.Element
 	elementList  *list.List // least recently used at the front.
 }
 
-func NewLRU(name string, maxSizeBytes int64) *LRU {
-	return &LRU{
+// NewLRU returns a cache with a max byte size. Least recently used entries will
+// be evicted first.
+func NewLRU(name string, maxSizeBytes int64) Cache {
+	return &lru{
 		maxSizeBytes: maxSizeBytes,
 		delegate:     New(name),
 		elementMap:   make(map[CacheKey]*list.Element),
@@ -24,20 +26,20 @@ func NewLRU(name string, maxSizeBytes int64) *LRU {
 	}
 }
 
-func (l *LRU) RegisterFetcher(fn interface{}) {
+func (l *lru) RegisterFetcher(fn interface{}) {
 	l.delegate.RegisterFetcher(fn)
 }
 
-func (l *LRU) Entries() []CacheEntry {
+func (l *lru) Entries() []CacheEntry {
 	// TODO(dan): Return copy that reflects LRU ordering.
 	return l.delegate.Entries()
 }
 
-func (l *LRU) Size() int64 {
+func (l *lru) Size() int64 {
 	return l.delegate.Size()
 }
 
-func (l *LRU) Invalidate(key CacheKey) bool {
+func (l *lru) Invalidate(key CacheKey) bool {
 	if ok := l.delegate.Invalidate(key); ok {
 		l.elementList.Remove(l.elementMap[key])
 		delete(l.elementMap, key)
@@ -46,12 +48,16 @@ func (l *LRU) Invalidate(key CacheKey) bool {
 	return false
 }
 
-func (l *LRU) Peek(key CacheKey) bool {
+func (l *lru) Peek(key CacheKey) bool {
 	return l.delegate.Peek(key)
 }
 
-func (l *LRU) Get(key CacheKey) ([]byte, error) {
-	e := l.delegate.GetCacheEntry(key)
+func (l *lru) GetCacheEntry(key CacheKey) *CacheEntry {
+	return l.delegate.GetCacheEntry(key)
+}
+
+func (l *lru) Get(key CacheKey) ([]byte, error) {
+	e := l.GetCacheEntry(key)
 
 	if e.Error == nil {
 		l.mu.Lock()
