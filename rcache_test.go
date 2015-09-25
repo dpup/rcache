@@ -113,13 +113,28 @@ func TestDependentGet(t *testing.T) {
 	}
 }
 
+func TestEntries(t *testing.T) {
+	c := New("test3")
+	c.RegisterFetcher(func(key StrKey) ([]byte, error) {
+		return []byte(string(key)), nil
+	})
+	c.Get(StrKey("1"))
+	c.Get(StrKey("2"))
+	c.Get(StrKey("3"))
+	c.Get(StrKey("4"))
+	entries := c.Entries()
+	if len(entries) != 4 {
+		t.Errorf("Expected 4 entries, was  %d", len(entries))
+	}
+}
+
 func TestBadFetcher_noArgs(t *testing.T) {
 	defer func() {
 		if e := recover(); e == nil {
 			t.Error("There was no panic")
 		}
 	}()
-	c := New("test3")
+	c := New("test4")
 	c.RegisterFetcher(func() ([]byte, error) { return []byte{}, nil })
 }
 

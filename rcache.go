@@ -64,6 +64,7 @@ var (
 )
 
 type CacheEntry struct {
+	Key      CacheKey
 	Bytes    []byte
 	Created  time.Time
 	Accessed time.Time
@@ -115,7 +116,7 @@ func (c *Cache) Get(key CacheKey) ([]byte, error) {
 	}
 
 	// Create the cache entry for future callers to wait on.
-	entry := &CacheEntry{}
+	entry := &CacheEntry{Key: key}
 	entry.wg.Add(1)
 	c.cache[key] = entry
 	c.cacheLock.Unlock()
@@ -135,6 +136,17 @@ func (c *Cache) Get(key CacheKey) ([]byte, error) {
 	c.cacheLock.Unlock()
 
 	return entry.Bytes, entry.err
+}
+
+// Entries returns an array of entries currently in the cache.
+func (c *Cache) Entries() []CacheEntry {
+	c.cacheLock.Lock()
+	defer c.cacheLock.Unlock()
+	entries := make([]CacheEntry, 0, len(c.cache))
+	for _, v := range c.cache {
+		entries = append(entries, *v)
+	}
+	return entries
 }
 
 // Invalidate removes an entry, and any entries that depend on it, from the cache.
