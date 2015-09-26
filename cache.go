@@ -105,23 +105,25 @@ func (c *cache) Entries() []CacheEntry {
 	return entries
 }
 
-func (c *cache) Invalidate(key CacheKey) bool {
+func (c *cache) Invalidate(key CacheKey, recursive bool) bool {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
-	return c.invalidate(key)
+	return c.invalidate(key, recursive)
 }
 
 func (c *cache) Size() int64 {
 	return c.cacheSize
 }
 
-func (c *cache) invalidate(key CacheKey) bool {
+func (c *cache) invalidate(key CacheKey, recursive bool) bool {
 	if entry, ok := c.cache[key]; ok {
 		size := int64(len(entry.Bytes))
 		c.cacheSizeExpVar.Add(-size)
 		c.cacheSize -= size
 		delete(c.cache, key)
-		c.invalidateDependents(key)
+		if recursive {
+			c.invalidateDependents(key)
+		}
 		return true
 	}
 	return false
@@ -132,7 +134,7 @@ func (c *cache) invalidateDependents(key CacheKey) {
 	for k, _ := range c.cache {
 		for _, dep := range k.Dependencies() {
 			if dep == key {
-				c.invalidate(k)
+				c.invalidate(k, true)
 			}
 		}
 	}

@@ -39,8 +39,9 @@ func (l *lru) Size() int64 {
 	return l.delegate.Size()
 }
 
-func (l *lru) Invalidate(key CacheKey) bool {
-	if ok := l.delegate.Invalidate(key); ok {
+func (l *lru) Invalidate(key CacheKey, recursive bool) bool {
+	// TODO(dan): recursive invalidation of LRU doesn't work.
+	if ok := l.delegate.Invalidate(key, false); ok {
 		l.elementList.Remove(l.elementMap[key])
 		delete(l.elementMap, key)
 		return true
@@ -72,7 +73,7 @@ func (l *lru) Get(key CacheKey) ([]byte, error) {
 			f := l.elementList.Front()
 			key := l.elementList.Remove(f).(CacheKey)
 			delete(l.elementMap, key)
-			l.delegate.Invalidate(key)
+			l.delegate.Invalidate(key, false)
 		}
 		l.mu.Unlock()
 	}

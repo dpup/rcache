@@ -60,7 +60,7 @@ func TestGetInvalidate(t *testing.T) {
 		t.Errorf("Expected fetcher to be called twice, was called %d times", i)
 	}
 
-	c.Invalidate(CarKey{"BMW", "M5"})
+	c.Invalidate(CarKey{"BMW", "M5"}, true)
 
 	c.Get(CarKey{"BMW", "M5"})
 	c.Get(CarKey{"VW", "Bug"})
@@ -102,7 +102,7 @@ func TestDependentGet(t *testing.T) {
 	}
 
 	// Invalidating 'CarKey' should also invalidate entry for 'derived'.
-	c.Invalidate(CarKey{"BMW", "M5"})
+	c.Invalidate(CarKey{"BMW", "M5"}, true)
 	c.Get(RepeatedKey{"BMW", "M5", 2})
 
 	if oi != 2 {

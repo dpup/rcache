@@ -40,8 +40,9 @@ type Cache interface {
 	// process of being fetched, Peek will block and return true on success.
 	Peek(key CacheKey) bool
 
-	// Invalidate removes an entry, and any entries that depend on it, from the cache.
-	Invalidate(key CacheKey) bool
+	// Invalidate removes an entry, and if `recursive` is true any entries that
+	// depend on it, from the cache.
+	Invalidate(key CacheKey, recursive bool) bool
 
 	// Entries returns an array of entries currently in the cache.
 	Entries() []CacheEntry
