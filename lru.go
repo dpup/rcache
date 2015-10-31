@@ -40,6 +40,8 @@ func (l *lru) Size() int64 {
 }
 
 func (l *lru) Invalidate(key CacheKey, recursive bool) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	// TODO(dan): recursive invalidation of LRU doesn't work.
 	if ok := l.delegate.Invalidate(key, false); ok {
 		l.elementList.Remove(l.elementMap[key])
