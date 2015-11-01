@@ -43,6 +43,9 @@ func (c *cache) RegisterFetcher(fn interface{}) {
 
 	// Map the argument type to the fetcher.
 	arg := t.In(0)
+	if _, ok := c.fetchers[arg]; ok {
+		panic(fmt.Sprintf("rcache: function already registered for type [%v]", arg))
+	}
 	c.fetchers[arg] = v
 }
 
@@ -154,17 +157,17 @@ func (c *cache) fetch(key interface{}) ([]byte, error) {
 		}
 		return values[0].Bytes(), nil
 	}
-	panic(fmt.Sprintf("cache: No fetcher function for type [%v]", t))
+	panic(fmt.Sprintf("rcache: No fetcher function for type [%v]", t))
 }
 
 func assertValidFetcher(t reflect.Type) {
 	if t.Kind() != reflect.Func {
-		panic(fmt.Sprintf("cache: Fetcher must be a function, got [%v]", t))
+		panic(fmt.Sprintf("rcache: Fetcher must be a function, got [%v]", t))
 	}
 	if t.NumIn() != 1 {
-		panic(fmt.Sprintf("cache: Fetcher must be function with one arg, has %d [%v]", t.NumIn(), t))
+		panic(fmt.Sprintf("rcache: Fetcher must be function with one arg, has %d [%v]", t.NumIn(), t))
 	}
 	if t.NumOut() != 2 || t.Out(0) != byteArrayType || t.Out(1) != errorType {
-		panic(fmt.Sprintf("cache: Fetcher must be function that returns ([]byte, error), has %d [%v]", t.NumOut(), t))
+		panic(fmt.Sprintf("rcache: Fetcher must be function that returns ([]byte, error), has %d [%v]", t.NumOut(), t))
 	}
 }

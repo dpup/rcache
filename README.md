@@ -7,7 +7,9 @@ keys.
 
 This is experimental, but if you do have questions, comments, bug reports, and
 pull requests please submit them
-[on the project issue tracker](https://github.com/dpup/rcache/issues/new).
+[on the project issue tracker](https://github.com/dpup/rcache/issues/new). [Read
+the godoc](https://godoc.org/github.com/dpup/rcache) for detailed,
+upto date, documentation.
 
 License
 -------

@@ -1,11 +1,12 @@
 // Copyright 2015 Daniel Pupius
 
-// Package rcache provides a generic in-memory, read through, hierarchical
-// cache, of []byte.
+// Package rcache provides an in-memory, read through cache of []byte for Go,
+// with compound, hierarchical keys.
 //
-// Cache keys are structs that can provide detailed parameters which registered
-// fetcher functions can use to create the requested resource. CacheKeys declare
-// what keys they depend on, which allows for removal of down-stream entries.
+// The fetcher function for a cache entry is defined by the type of its key arg.
+// Using a struct allows detailed parameters. Key types can declare what other
+// keys they depend on by implementing the CacheKey interface, this allows for
+// removal of down-stream entries.
 //
 // Due to the use of reflection for keys, cache misses are 2-5x slower than
 // using a regular, typed map. But cache hits are fast.
@@ -25,8 +26,10 @@ import (
 type Cache interface {
 	// RegisterFetcher registers a fetcher function which the cache will use to load
 	// data on a cache miss. The function should have a single argument, the type
-	// of the argument should be unique to the fetcher.
-	// The return value should be ([]byte error).
+	// of the argument should be unique to the fetcher. The return value should be
+	// ([]byte error).
+	// For example, `func foo(key string) ([]byte, error)` will be used when
+	// calling `cache.Get("bar")`.
 	RegisterFetcher(fn interface{})
 
 	// Get returns the data for a key, falling back to a fetcher function if the
