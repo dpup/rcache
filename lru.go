@@ -11,7 +11,7 @@ type lru struct {
 	maxSizeBytes int64
 	delegate     Cache
 	mu           sync.Mutex
-	elementMap   map[CacheKey]*list.Element
+	elementMap   map[interface{}]*list.Element
 	elementList  *list.List // least recently used at the front.
 }
 
@@ -21,7 +21,7 @@ func NewLRU(name string, maxSizeBytes int64) Cache {
 	return &lru{
 		maxSizeBytes: maxSizeBytes,
 		delegate:     New(name),
-		elementMap:   make(map[CacheKey]*list.Element),
+		elementMap:   make(map[interface{}]*list.Element),
 		elementList:  list.New(),
 	}
 }
@@ -39,7 +39,7 @@ func (l *lru) Size() int64 {
 	return l.delegate.Size()
 }
 
-func (l *lru) Invalidate(key CacheKey, recursive bool) bool {
+func (l *lru) Invalidate(key interface{}, recursive bool) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	// TODO(dan): recursive invalidation of LRU doesn't work.
@@ -51,15 +51,15 @@ func (l *lru) Invalidate(key CacheKey, recursive bool) bool {
 	return false
 }
 
-func (l *lru) Peek(key CacheKey) bool {
+func (l *lru) Peek(key interface{}) bool {
 	return l.delegate.Peek(key)
 }
 
-func (l *lru) GetCacheEntry(key CacheKey) *CacheEntry {
+func (l *lru) GetCacheEntry(key interface{}) *CacheEntry {
 	return l.delegate.GetCacheEntry(key)
 }
 
-func (l *lru) Get(key CacheKey) ([]byte, error) {
+func (l *lru) Get(key interface{}) ([]byte, error) {
 	e := l.GetCacheEntry(key)
 
 	if e.Error == nil {
@@ -73,7 +73,7 @@ func (l *lru) Get(key CacheKey) ([]byte, error) {
 		// Remove least recently used elements until cache is under capacity.
 		for l.delegate.Size() > l.maxSizeBytes {
 			f := l.elementList.Front()
-			key := l.elementList.Remove(f).(CacheKey)
+			key := l.elementList.Remove(f)
 			delete(l.elementMap, key)
 			l.delegate.Invalidate(key, false)
 		}

@@ -11,10 +11,6 @@ type FixedSizeEntry struct {
 	size int
 }
 
-func (key FixedSizeEntry) Dependencies() []CacheKey {
-	return NoDeps
-}
-
 func TestLRUBehavior(t *testing.T) {
 	lru := NewLRU("lru1", 9)
 	lru.RegisterFetcher(func(key FixedSizeEntry) ([]byte, error) {

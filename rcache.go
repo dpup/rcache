@@ -24,25 +24,26 @@ import (
 // fetcher functions for complex cache keys.
 type Cache interface {
 	// RegisterFetcher registers a fetcher function which the cache will use to load
-	// data on a cache miss. The function should have a single argument, a type that
-	// implements the CacheKey interface. The return value should be ([]byte error).
+	// data on a cache miss. The function should have a single argument, the type
+	// of the argument should be unique to the fetcher.
+	// The return value should be ([]byte error).
 	RegisterFetcher(fn interface{})
 
 	// Get returns the data for a key, falling back to a fetcher function if the
 	// data hasn't yet been loaded. Concurrent callers will multiplex to the same
 	// fetcher.
-	Get(key CacheKey) ([]byte, error)
+	Get(key interface{}) ([]byte, error)
 
 	// GetCacheEntry is the same as Get but returns the meta cache entry.
-	GetCacheEntry(key CacheKey) *CacheEntry
+	GetCacheEntry(key interface{}) *CacheEntry
 
 	// Peek returns true if the key is currently cached. If the key is in the
 	// process of being fetched, Peek will block and return true on success.
-	Peek(key CacheKey) bool
+	Peek(key interface{}) bool
 
 	// Invalidate removes an entry, and if `recursive` is true any entries that
 	// depend on it, from the cache.
-	Invalidate(key CacheKey, recursive bool) bool
+	Invalidate(key interface{}, recursive bool) bool
 
 	// Entries returns an array of entries currently in the cache.
 	Entries() []CacheEntry
@@ -54,7 +55,7 @@ type Cache interface {
 // CacheEntry stores details about an entry in the cache, including the content,
 // when it was created, and when it was last accessed.
 type CacheEntry struct {
-	Key      CacheKey
+	Key      interface{}
 	Bytes    []byte
 	Created  time.Time
 	Accessed time.Time
@@ -62,18 +63,9 @@ type CacheEntry struct {
 	wg       sync.WaitGroup
 }
 
-// CacheKey with dependencies.
+// CacheKey is an interface that compound keys can implement in order to declare
+// dependent keys that should be invalidated.
 type CacheKey interface {
-	Dependencies() []CacheKey
-}
-
-// NoDeps is an empty set of dependencies.
-var NoDeps = []CacheKey{}
-
-// StrKey allows strings to be easily used as cache keys with no dependencies.
-type StrKey string
-
-// Dependencies returns empty set.
-func (str StrKey) Dependencies() []CacheKey {
-	return NoDeps
+	// Dependencies returns an array of cache keys that the key is dependent on.
+	Dependencies() []interface{}
 }

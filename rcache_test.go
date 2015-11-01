@@ -12,18 +12,14 @@ type CarKey struct {
 	Model        string
 }
 
-func (key CarKey) Dependencies() []rcache.CacheKey {
-	return rcache.NoDeps
-}
-
 type ThumbnailKey struct {
 	Manufacturer string
 	Model        string
 	Size         int
 }
 
-func (key ThumbnailKey) Dependencies() []rcache.CacheKey {
-	return []rcache.CacheKey{CarKey{key.Manufacturer, key.Model}}
+func (key ThumbnailKey) Dependencies() []interface{} {
+	return []interface{}{CarKey{key.Manufacturer, key.Model}}
 }
 
 // The following example (pretends to) request images for a car, then has a

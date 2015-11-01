@@ -12,31 +12,31 @@ var runs = 0
 func BenchmarkCacheWithMisses(b *testing.B) {
 	runs++
 	c := New("bench" + strconv.Itoa(runs))
-	c.RegisterFetcher(func(key StrKey) ([]byte, error) {
+	c.RegisterFetcher(func(key string) ([]byte, error) {
 		return []byte(key), nil
 	})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c.Get(StrKey(strconv.Itoa(i)))
+		c.Get(strconv.Itoa(i))
 	}
 }
 
 func BenchmarkCacheWithHits(b *testing.B) {
 	runs++
 	c := New("bench" + strconv.Itoa(runs))
-	c.RegisterFetcher(func(key StrKey) ([]byte, error) {
+	c.RegisterFetcher(func(key string) ([]byte, error) {
 		return []byte(key), nil
 	})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c.Get(StrKey("1"))
+		c.Get("1")
 	}
 }
 
 func BenchmarkNormalMapWithMisses(b *testing.B) {
-	m := make(map[StrKey][]byte)
+	m := make(map[string][]byte)
 	for i := 0; i < b.N; i++ {
 		name := strconv.Itoa(i)
-		m[StrKey(name)] = []byte(name)
+		m[name] = []byte(name)
 	}
 }

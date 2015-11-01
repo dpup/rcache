@@ -17,7 +17,7 @@ var (
 
 type cache struct {
 	fetchers        map[reflect.Type]reflect.Value
-	cache           map[CacheKey]*CacheEntry
+	cache           map[interface{}]*CacheEntry
 	cacheLock       sync.Mutex
 	cacheSize       int64
 	cacheSizeExpVar *expvar.Int
@@ -28,7 +28,7 @@ type cache struct {
 func New(name string) Cache {
 	return &cache{
 		fetchers:        make(map[reflect.Type]reflect.Value),
-		cache:           make(map[CacheKey]*CacheEntry),
+		cache:           make(map[interface{}]*CacheEntry),
 		cacheSizeExpVar: expvar.NewInt(fmt.Sprintf("cacheSize (%s)", name)),
 	}
 }
@@ -46,12 +46,12 @@ func (c *cache) RegisterFetcher(fn interface{}) {
 	c.fetchers[arg] = v
 }
 
-func (c *cache) Get(key CacheKey) ([]byte, error) {
+func (c *cache) Get(key interface{}) ([]byte, error) {
 	e := c.GetCacheEntry(key)
 	return e.Bytes, e.Error
 }
 
-func (c *cache) GetCacheEntry(key CacheKey) *CacheEntry {
+func (c *cache) GetCacheEntry(key interface{}) *CacheEntry {
 	c.cacheLock.Lock()
 	if entry, ok := c.cache[key]; ok {
 		c.cacheLock.Unlock()
@@ -84,7 +84,7 @@ func (c *cache) GetCacheEntry(key CacheKey) *CacheEntry {
 	return entry
 }
 
-func (c *cache) Peek(key CacheKey) bool {
+func (c *cache) Peek(key interface{}) bool {
 	c.cacheLock.Lock()
 	if entry, ok := c.cache[key]; ok {
 		c.cacheLock.Unlock()
@@ -105,7 +105,7 @@ func (c *cache) Entries() []CacheEntry {
 	return entries
 }
 
-func (c *cache) Invalidate(key CacheKey, recursive bool) bool {
+func (c *cache) Invalidate(key interface{}, recursive bool) bool {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
 	return c.invalidate(key, recursive)
@@ -115,7 +115,7 @@ func (c *cache) Size() int64 {
 	return c.cacheSize
 }
 
-func (c *cache) invalidate(key CacheKey, recursive bool) bool {
+func (c *cache) invalidate(key interface{}, recursive bool) bool {
 	if entry, ok := c.cache[key]; ok {
 		size := int64(len(entry.Bytes))
 		c.cacheSizeExpVar.Add(-size)
@@ -129,19 +129,21 @@ func (c *cache) invalidate(key CacheKey, recursive bool) bool {
 	return false
 }
 
-func (c *cache) invalidateDependents(key CacheKey) {
+func (c *cache) invalidateDependents(key interface{}) {
 	// TODO: this can be optimized.
 	for k := range c.cache {
-		for _, dep := range k.Dependencies() {
-			if dep == key {
-				c.invalidate(k, true)
+		if kd, ok := k.(CacheKey); ok {
+			for _, dep := range kd.Dependencies() {
+				if dep == key {
+					c.invalidate(k, true)
+				}
 			}
 		}
 	}
 }
 
 // fetch uses reflection to look up the right fetcher, then requests the data.
-func (c *cache) fetch(key CacheKey) ([]byte, error) {
+func (c *cache) fetch(key interface{}) ([]byte, error) {
 	v := reflect.ValueOf(key)
 	t := v.Type()
 	if fetcher, ok := c.fetchers[t]; ok {

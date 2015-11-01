@@ -13,10 +13,6 @@ type CarKey struct {
 	Model        string
 }
 
-func (key CarKey) Dependencies() []CacheKey {
-	return NoDeps
-}
-
 func (key CarKey) String() string {
 	return key.Manufacturer + " " + key.Model
 }
@@ -27,8 +23,8 @@ type RepeatedKey struct {
 	Times        int
 }
 
-func (key RepeatedKey) Dependencies() []CacheKey {
-	return []CacheKey{CarKey{key.Manufacturer, key.Model}}
+func (key RepeatedKey) Dependencies() []interface{} {
+	return []interface{}{CarKey{key.Manufacturer, key.Model}}
 }
 
 func (key RepeatedKey) String() string {
@@ -115,13 +111,13 @@ func TestDependentGet(t *testing.T) {
 
 func TestEntries(t *testing.T) {
 	c := New("test3")
-	c.RegisterFetcher(func(key StrKey) ([]byte, error) {
-		return []byte(string(key)), nil
+	c.RegisterFetcher(func(key string) ([]byte, error) {
+		return []byte(key), nil
 	})
-	c.Get(StrKey("1"))
-	c.Get(StrKey("2"))
-	c.Get(StrKey("3"))
-	c.Get(StrKey("4"))
+	c.Get("1")
+	c.Get("2")
+	c.Get("3")
+	c.Get("4")
 	entries := c.Entries()
 	if len(entries) != 4 {
 		t.Errorf("Expected 4 entries, was  %d", len(entries))
