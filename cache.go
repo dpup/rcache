@@ -131,7 +131,7 @@ func (c *cache) invalidate(key CacheKey, recursive bool) bool {
 
 func (c *cache) invalidateDependents(key CacheKey) {
 	// TODO: this can be optimized.
-	for k, _ := range c.cache {
+	for k := range c.cache {
 		for _, dep := range k.Dependencies() {
 			if dep == key {
 				c.invalidate(k, true)
@@ -149,12 +149,10 @@ func (c *cache) fetch(key CacheKey) ([]byte, error) {
 		// We've already verified types should be correct.
 		if values[1].Interface() != nil {
 			return []byte{}, values[1].Interface().(error)
-		} else {
-			return values[0].Bytes(), nil
 		}
-	} else {
-		panic(fmt.Sprintf("cache: No fetcher function for type [%v]", t))
+		return values[0].Bytes(), nil
 	}
+	panic(fmt.Sprintf("cache: No fetcher function for type [%v]", t))
 }
 
 func assertValidFetcher(t reflect.Type) {

@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-// The cache interface has multiple implementations. Both provide generic
+// The Cache interface has multiple implementations. Both provide generic
 // fetcher functions for complex cache keys.
 type Cache interface {
 	// RegisterFetcher registers a fetcher function which the cache will use to load
@@ -51,6 +51,8 @@ type Cache interface {
 	Size() int64
 }
 
+// CacheEntry stores details about an entry in the cache, including the content,
+// when it was created, and when it was last accessed.
 type CacheEntry struct {
 	Key      CacheKey
 	Bytes    []byte
@@ -60,16 +62,18 @@ type CacheEntry struct {
 	wg       sync.WaitGroup
 }
 
-// Cache keys must satisfy the CacheKey interface.
+// CacheKey with dependencies.
 type CacheKey interface {
 	Dependencies() []CacheKey
 }
 
+// NoDeps is an empty set of dependencies.
 var NoDeps = []CacheKey{}
 
 // StrKey allows strings to be easily used as cache keys with no dependencies.
 type StrKey string
 
+// Dependencies returns empty set.
 func (str StrKey) Dependencies() []CacheKey {
 	return NoDeps
 }

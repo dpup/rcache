@@ -1,5 +1,7 @@
 # rcache
 
+[![GoDoc](https://godoc.org/github.com/dpup/rcache?status.svg)](https://godoc.org/github.com/dpup/rcache)
+
 An in-memory, read through cache of []byte for Go, with compound hierarchical
 keys.
 
